@@ -9,10 +9,17 @@ services:
     environment:
       WHISPER__MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
       WHISPER__INFERENCE_DEVICE: auto
+      # Load Whisper at startup and keep it on the GPU; upstream unloads it after 5 idle minutes, which
+      # makes the next recording wait ~15 s for a reload. Set WHISPER_TTL=300 in .env to free the VRAM.
+      PRELOAD_MODELS: '["deepdml/faster-whisper-large-v3-turbo-ct2"]'
+      WHISPER__TTL: ${WHISPER_TTL:--1}
       HF_TOKEN: ${HF_TOKEN:-}
       DIARIZATION_PRELOAD: ${DIARIZATION_PRELOAD:-1}
     volumes:
       - faster-whisper-cache:/root/.cache/huggingface
+      # CUDA compiles kernels for this GPU on first use; keeping them makes the first request after a
+      # restart as fast as the rest.
+      - cuda-cache:/root/.nv
     deploy:
       resources:
         reservations:
@@ -22,6 +29,7 @@ services:
               capabilities: [gpu]
 
 volumes:
+  cuda-cache:
   # Created by the original `docker run`; holds the downloaded Whisper and pyannote models.
   faster-whisper-cache:
     external: true

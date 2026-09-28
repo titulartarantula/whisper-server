@@ -54,5 +54,10 @@ curl -F file=@meeting.wav http://localhost:8000/v1/audio/diarization
   Dockerfile installs.
 - `huggingface-hub` is held below 1.0 and `h11` below 0.15 so faster-whisper's own dependencies stay intact.
   The build runs `uv pip check` and fails if anything conflicts.
+- Whisper is loaded at startup and kept on the GPU (`WHISPER_TTL=-1`). Upstream's default unloads it after
+  5 idle minutes, which costs ~15 s on the next request. Set `WHISPER_TTL=300` in `.env` to free the VRAM
+  between meetings.
+- CUDA compiles kernels for this GPU on first use. The `cuda-cache` volume keeps them, so the first
+  request after a restart isn't slow.
 - pyannote logs a warning that torchcodec can't load. That's expected: audio is decoded with soundfile and
   passed to pyannote in memory.
