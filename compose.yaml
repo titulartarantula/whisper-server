@@ -1,0 +1,27 @@
+services:
+  faster-whisper:
+    build: .
+    image: local/faster-whisper-diarize
+    container_name: faster-whisper
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      WHISPER__MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
+      WHISPER__INFERENCE_DEVICE: auto
+      HF_TOKEN: ${HF_TOKEN:-}
+      DIARIZATION_PRELOAD: ${DIARIZATION_PRELOAD:-1}
+    volumes:
+      - faster-whisper-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  # Created by the original `docker run`; holds the downloaded Whisper and pyannote models.
+  faster-whisper-cache:
+    external: true
