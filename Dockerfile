@@ -7,7 +7,7 @@ WORKDIR /root/faster-whisper-server
 # Blackwell GPUs (RTX 50xx, sm_120) need PyTorch built for CUDA 12.8 or later. Torch brings its own
 # CUDA and cuDNN 9 libraries; CTranslate2 keeps using the image's cuDNN 8, so the two don't collide.
 # faster-whisper's tokenizers needs huggingface-hub < 1.0, and httpcore needs h11 < 0.15.
-# pyannote warns that torchcodec can't load (no ffmpeg); that's fine, audio is passed in memory.
+# pyannote warns that torchcodec can't load; that's fine, audio is decoded with PyAV and passed in memory.
 RUN uv pip install --python .venv/bin/python --index-url https://download.pytorch.org/whl/cu128 \
         torch torchaudio \
  && uv pip install --python .venv/bin/python "pyannote.audio>=4.0" "huggingface-hub<1.0" "h11<0.15" \

@@ -31,7 +31,7 @@ A stock Whisper server returns 404 here. Transcriber treats that as "separate vo
 
 | Field | |
 | --- | --- |
-| `file` | audio (WAV/FLAC; Transcriber sends 16 kHz mono PCM) |
+| `file` | audio in any format the transcription endpoint accepts (WAV, FLAC, MP3, M4A, AAC, OGG, …); Transcriber sends 16 kHz mono WAV |
 | `num_speakers` | optional, exact count |
 | `min_speakers`, `max_speakers` | optional bounds |
 
@@ -59,5 +59,5 @@ curl -F file=@meeting.wav http://localhost:8000/v1/audio/diarization
   a few seconds. The process keeps a small CUDA context (a few hundred MB) while the container runs.
 - CUDA compiles kernels for this GPU on first use. The `cuda-cache` volume keeps them, so the first
   request after a restart isn't slow.
-- pyannote logs a warning that torchcodec can't load. That's expected: audio is decoded with soundfile and
-  passed to pyannote in memory.
+- pyannote logs a warning that torchcodec can't load. That's expected: audio is decoded with faster-whisper's
+  own decoder (PyAV) and passed to pyannote in memory.

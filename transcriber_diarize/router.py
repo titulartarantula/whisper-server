@@ -11,8 +11,8 @@ import threading
 import time
 from typing import Annotated, Any
 
+import av
 import numpy as np
-import soundfile
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 
@@ -94,9 +94,22 @@ def preload_in_background() -> None:
     threading.Thread(target=run, name="diarization-preload", daemon=True).start()
 
 
+SAMPLE_RATE = 16000
+
+
+class NoAudioError(ValueError):
+    pass
+
+
 def _read_audio(data: bytes) -> tuple[np.ndarray, int]:
-    samples, rate = soundfile.read(io.BytesIO(data), dtype="float32", always_2d=True)
-    return samples.mean(axis=1), rate
+    """16 kHz mono, decoded the way the transcription endpoint does it, so every format it takes
+    (WAV, FLAC, MP3, M4A, AAC, OGG, a video's soundtrack, ...) works here too."""
+    from faster_whisper.audio import decode_audio
+
+    samples = decode_audio(io.BytesIO(data), sampling_rate=SAMPLE_RATE)
+    if samples.size == 0:
+        raise NoAudioError("The file has no audio.")
+    return samples, SAMPLE_RATE
 
 
 def _diarize(data: bytes, num: int | None, low: int | None, high: int | None) -> dict[str, Any]:
@@ -147,7 +160,7 @@ async def diarize(
                 return await run_in_threadpool(_diarize, data, num_speakers, min_speakers, max_speakers)
             finally:
                 _schedule_unload()
-    except soundfile.LibsndfileError as e:
+    except (av.error.FFmpegError, NoAudioError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Could not read the audio: {e}") from e
     except Exception as e:
         logger.exception("Diarization failed")
