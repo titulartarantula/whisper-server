@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import io
 import logging
 import os
@@ -16,6 +17,8 @@ from fastapi import APIRouter, Form, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 MODEL = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization-community-1")
+# Seconds of idleness before the model leaves the GPU, like faster-whisper-server's WHISPER__TTL. -1 keeps it.
+TTL = int(os.environ.get("DIARIZATION_TTL", "300"))
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["diarization"])
@@ -23,6 +26,7 @@ router = APIRouter(tags=["diarization"])
 _pipeline: Any = None
 _device = "cpu"
 _load_lock = threading.Lock()
+_unload_timer: threading.Timer | None = None
 # One GPU: running two diarizations at once only makes both slower.
 _run_lock = asyncio.Lock()
 
@@ -48,10 +52,42 @@ def load_pipeline() -> Any:
         return _pipeline
 
 
+def _schedule_unload() -> None:
+    """Restarts the idle countdown; the GPU is shared with other work, so an idle model shouldn't sit on it."""
+    global _unload_timer
+    if TTL < 0:
+        return
+    with _load_lock:
+        if _unload_timer is not None:
+            _unload_timer.cancel()
+        _unload_timer = threading.Timer(TTL, _unload)
+        _unload_timer.daemon = True
+        _unload_timer.start()
+
+
+def _unload() -> None:
+    global _pipeline
+    if _run_lock.locked():
+        _schedule_unload()  # still busy; try again after another idle period
+        return
+    with _load_lock:
+        if _pipeline is None:
+            return
+        _pipeline = None
+
+    import torch
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    logger.info("Unloaded %s after %ss idle", MODEL, TTL)
+
+
 def preload_in_background() -> None:
     def run() -> None:
         try:
             load_pipeline()
+            _schedule_unload()
         except Exception:
             logger.exception("Preloading %s failed; it will be retried on the first request", MODEL)
 
@@ -107,7 +143,10 @@ async def diarize(
     data = await file.read()
     try:
         async with _run_lock:
-            return await run_in_threadpool(_diarize, data, num_speakers, min_speakers, max_speakers)
+            try:
+                return await run_in_threadpool(_diarize, data, num_speakers, min_speakers, max_speakers)
+            finally:
+                _schedule_unload()
     except soundfile.LibsndfileError as e:
         raise HTTPException(status_code=400, detail=f"Could not read the audio: {e}") from e
     except Exception as e:
