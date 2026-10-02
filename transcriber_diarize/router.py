@@ -122,19 +122,27 @@ def _diarize(data: bytes, num: int | None, low: int | None, high: int | None) ->
     # Passing the waveform directly skips pyannote's ffmpeg-based file decoding.
     kwargs = {k: v for k, v in {"num_speakers": num, "min_speakers": low, "max_speakers": high}.items() if v}
     output = pipeline({"waveform": torch.from_numpy(mono).unsqueeze(0), "sample_rate": rate}, **kwargs)
-    # Exclusive mode gives one speaker at a time, which is what word-level attribution needs.
-    annotation = getattr(output, "exclusive_speaker_diarization", output)
+    # Exclusive mode gives one speaker at a time, which is what word-level attribution needs. The full
+    # diarization, where turns overlap, shows who kept talking while someone else said "mm-hmm".
+    exclusive = getattr(output, "exclusive_speaker_diarization", None)
+    full = getattr(output, "speaker_diarization", output)
 
     ids: dict[str, int] = {}
-    segments = []
-    for turn, _, label in sorted(annotation.itertracks(yield_label=True), key=lambda t: t[0].start):
-        speaker = ids.setdefault(label, len(ids))
-        segments.append({"start": round(turn.start, 3), "end": round(turn.end, 3), "speaker": speaker})
+
+    def turns(annotation: Any) -> list[dict[str, Any]]:
+        return [
+            {"start": round(turn.start, 3), "end": round(turn.end, 3), "speaker": ids.setdefault(label, len(ids))}
+            for turn, _, label in sorted(annotation.itertracks(yield_label=True), key=lambda t: t[0].start)
+        ]
+
+    result: dict[str, Any] = {"segments": turns(exclusive if exclusive is not None else full)}
+    if exclusive is not None:
+        result["overlap_segments"] = turns(full)
 
     return {
         "duration": round(len(mono) / rate, 3),
         "num_speakers": len(ids),
-        "segments": segments,
+        **result,
         "model": MODEL,
         "device": _device,
         "elapsed": round(time.perf_counter() - started, 2),

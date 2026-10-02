@@ -35,11 +35,15 @@ A stock Whisper server returns 404 here. Transcriber treats that as "separate vo
 | `num_speakers` | optional, exact count |
 | `min_speakers`, `max_speakers` | optional bounds |
 
-It returns exclusive turns, meaning one speaker at a time, with speakers numbered by first appearance:
+`segments` are exclusive turns, meaning one speaker at a time, with speakers numbered by first appearance.
+`overlap_segments` are the same speakers' turns where they're allowed to overlap: when someone says
+"mm-hmm" over a long turn, the long turn carries on underneath it. Transcriber uses them to keep the
+talker's words with the talker.
 
 ```json
 {"duration": 48.2, "num_speakers": 2, "model": "…", "device": "cuda", "elapsed": 1.9,
- "segments": [{"start": 0.03, "end": 7.9, "speaker": 0}, {"start": 8.2, "end": 15.1, "speaker": 1}]}
+ "segments": [{"start": 0.03, "end": 7.9, "speaker": 0}, {"start": 7.9, "end": 8.3, "speaker": 1}, {"start": 8.3, "end": 15.1, "speaker": 0}],
+ "overlap_segments": [{"start": 0.03, "end": 15.1, "speaker": 0}, {"start": 7.9, "end": 8.3, "speaker": 1}]}
 ```
 
 Errors return 503 with a `detail` message. Requests run one at a time on the GPU.
