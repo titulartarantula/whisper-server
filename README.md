@@ -65,3 +65,21 @@ curl -F file=@meeting.wav http://localhost:8000/v1/audio/diarization
   request after a restart isn't slow.
 - pyannote logs a warning that torchcodec can't load. That's expected: audio is decoded with faster-whisper's
   own decoder (PyAV) and passed to pyannote in memory.
+
+## Licence
+
+The code in this repository (the Dockerfile, compose file and `transcriber_diarize`) is released under the
+[MIT License](LICENSE).
+
+It doesn't include any third-party code. The image pulls these in at build or run time, and each keeps its
+own licence:
+
+| Component | Licence |
+| --- | --- |
+| [faster-whisper-server](https://github.com/fedirz/faster-whisper-server) (base image), [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [CTranslate2](https://github.com/OpenNMT/CTranslate2) | MIT |
+| [pyannote.audio](https://github.com/pyannote/pyannote-audio) | MIT |
+| [PyTorch](https://github.com/pytorch/pytorch) / torchaudio | BSD-3-Clause |
+| Whisper model weights (e.g. `deepdml/faster-whisper-large-v3-turbo-ct2`) | MIT |
+| [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) model | CC-BY-4.0 (gated: accept its terms on Hugging Face) |
+
+If you redistribute a built image, you're redistributing those components too, so include their notices.
