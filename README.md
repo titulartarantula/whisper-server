@@ -1,6 +1,6 @@
 # whisper-server
 
-The GPU speech server Transcriber talks to. It's [faster-whisper-server](https://github.com/fedirz/faster-whisper-server)
+The GPU speech server that [Transcriber](https://github.com/titulartarantula/transcriber) (Windows and Android) talks to. It's [faster-whisper-server](https://github.com/fedirz/faster-whisper-server)
 (OpenAI-compatible `/v1/audio/transcriptions`) with one addition: a speaker diarization endpoint backed by
 [pyannote community-1](https://huggingface.co/pyannote/speaker-diarization-community-1). Both run in one
 container on port 8000. Upstream code is not modified. `transcriber_diarize/main.py` wraps upstream's app
